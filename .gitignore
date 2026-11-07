@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.env*
+!.env.example
+*.pem
+*account*
+*credential*
+*credentials*
+*계정*
+*인증정보*
