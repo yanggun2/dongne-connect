@@ -5,8 +5,16 @@ out/
 .env*
 !.env.example
 *.pem
+*.key
+*.pfx
+*.p12
+.aws/
+*.log
+test-results/
+playwright-report/
 *account*
 *credential*
 *credentials*
 *계정*
 *인증정보*
+/화면 캡처 2026-11-03 142446.png

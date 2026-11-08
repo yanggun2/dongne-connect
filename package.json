@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test:llm": "node --conditions=react-server --import tsx scripts/test-llm.ts"
+    "test:search": "node --conditions=react-server --import tsx --test scripts/search.test.ts",
+    "test:llm": "node --conditions=react-server --import tsx scripts/test-llm.ts",
+    "test:waste-api": "node --import tsx scripts/test-waste-api.ts"
   },
   "dependencies": {
     "@next/env": "^15.5.0",
