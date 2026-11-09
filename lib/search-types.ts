@@ -68,6 +68,7 @@ export type SearchResult =
     }
   | {
       status: "answered";
+      answerMode?: "generated" | "source";
       answer: string;
       sources: SearchCitation[];
     }

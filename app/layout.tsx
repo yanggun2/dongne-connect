@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./home.css";
+import "./redesign.css";
 
 export const metadata: Metadata = {
   title: "동네일 | 우리 동네 생활정보",

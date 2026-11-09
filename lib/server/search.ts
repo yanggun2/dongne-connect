@@ -5,6 +5,7 @@ import { filterEventsByLocation, getEventDates, officialEvents, searchOfficialEv
 import { getKoreanDateKey, getWeekDateKeys } from "../calendar";
 
 import { getLlmClient, getLlmModel } from "./llm";
+import { buildAnswerRequest, readAnswerCompletion, type AnswerEvidence } from "./answer-generation";
 import facilityData from "./seongnam-facilities.json";
 import {
   getCenterSource,
@@ -241,7 +242,7 @@ type SearchInput = {
 
 type GenerateAnswer = (
   question: string,
-  fields: Array<{ id: string; content: string; regionName: string; dataAsOf: string | null; checkedAt: string }>,
+  fields: AnswerEvidence[],
   signal: AbortSignal,
 ) => Promise<string>;
 
@@ -339,6 +340,12 @@ function directoryCitation(
 
 function isWasteQuestion(question: string): boolean {
   return /쓰레기|폐기물|배출|분리배출|재활용|음식물|수거|미수거/u.test(question);
+}
+
+function isReviewedCollectionQuestion(question: string): boolean {
+  if (!/일요일|공휴일|미수거/u.test(question) || !/수거|가져가|청소차/u.test(question)) return false;
+  const remainder = question.replace(/일요일|공휴일/gu, "");
+  return !/배출|버리|버려|버릴|내놓|오늘|내일|어제|이번|다음|지난|올해|명절|설날|추석|토요일|평일|주말|요일|시간|몇\s*시|언제|관리구역|관할|아파트|공동주택|단독|상가|음식물|재활용|분리|종이|플라스틱|페트|유리|비닐|사업장|건설|산업|의료|병원|약품|화학|유해|방사|농약|석면|다량|대형|\d/u.test(remainder);
 }
 
 function directoryIntent(
@@ -561,26 +568,13 @@ async function generateWithLlm(
   fields: Parameters<GenerateAnswer>[1],
   signal: AbortSignal,
 ): Promise<string> {
+  const request = buildAnswerRequest(question, fields, getLlmModel());
   const client = getLlmClient();
   const completion = await client.chat.completions.create(
-    {
-      model: getLlmModel(),
-      messages: [
-        {
-          role: "system",
-          content:
-            "질문에는 제공된 근거만 사용해 한국어로 답하세요. 근거의 적용 지역과 데이터 기준일 한계를 지키고, 없는 사실·날짜·링크를 만들지 마세요. 답변만 작성하세요.",
-        },
-        {
-          role: "user",
-          content: JSON.stringify({ question, evidence: fields }),
-        },
-      ],
-      max_tokens: 400,
-    },
-    { signal, maxRetries: 0 },
+    request,
+    { signal, maxRetries: 0, timeout: SEARCH_TIMEOUT_MS },
   );
-  return completion.choices[0]?.message.content?.trim() ?? "";
+  return readAnswerCompletion(completion);
 }
 
 async function withTimeout<T>(
@@ -609,7 +603,8 @@ export async function searchAndAnswer(
 ): Promise<SearchResult> {
   const sources = dependencies.sources ?? evidenceSources;
   const region = requestedRegion(input.question, input.location);
-  if (!dependencies.sources && isWasteGuideQuestion(input.question)) {
+  const reviewedCollection = !dependencies.sources && isReviewedCollectionQuestion(input.question);
+  if (!dependencies.sources && !reviewedCollection && isWasteGuideQuestion(input.question)) {
     if (!region.includes("성남")) return {
       status: "region_mismatch", message: "현재 확인한 배출 안내책자는 성남시 자료입니다. 해당 지자체의 공식 배출 안내를 확인해 주세요.", sources: [],
     };
@@ -836,10 +831,25 @@ export async function searchAndAnswer(
     return result;
   }, []);
 
+  if (!dependencies.sources && (!reviewedCollection || usable.some(({ source, field }) =>
+    source.id !== "mois-waste-api-seongnam" || field.id !== "non-collection-sunday-holidays"))) return {
+    status: "insufficient",
+    message: "현재 확인된 시 단위 미수거 안내만으로는 해당 날짜·시간·품목·개별 지역의 수거 여부를 확정할 수 없어요. 공식 출처에서 상세 안내를 확인해 주세요.",
+    sources: citations,
+  };
+  const scopeNote = reviewedCollection
+    ? `성남시 공통 수거 안내이며 선택한 동의 배출 요일이나 개별 건물의 수거 일정은 확인하지 않았어요. 자료 기준일은 ${usable[0].source.dataAsOf ?? "미확인"}, 공식 안내 대조일은 ${usable[0].source.checkedAt}입니다. 특정 날짜·명절·변경 여부는 공식 안내를 확인해 주세요.`
+    : "";
+  const collectionFallback: SearchResult | undefined = reviewedCollection && usable.every(({ source, field }) =>
+    source.id === "mois-waste-api-seongnam" && field.id === "non-collection-sunday-holidays")
+    ? { status: "answered", answerMode: "source", answer: `${usable.map(({ field }) => field.content).join(" ")}\n\n${scopeNote}`, sources: citations }
+    : undefined;
+
   // Production generation requires a separate opt-in, never just a stored key.
   // Injected generators are offline test doubles, not production configuration.
   if (!dependencies.generateAnswer && (process.env.LLM_SEARCH_ENABLED !== "true" ||
     !process.env.LLM_API_KEY?.trim() || !process.env.LLM_BASE_URL?.trim() || !process.env.LLM_MODEL?.trim())) {
+    if (collectionFallback) return collectionFallback;
     return {
       status: "insufficient",
       message: "현재는 공식 자료 안내를 제공하고 있어요. 자세한 내용은 아래 공식 출처를 확인해 주세요.",
@@ -853,6 +863,7 @@ export async function searchAndAnswer(
         (dependencies.generateAnswer ?? generateWithLlm)(
           input.question,
           usable.map(({ source, field }) => ({
+            sourceId: source.id,
             id: field.id,
             content: field.content,
             regionName: source.regionName,
@@ -866,15 +877,16 @@ export async function searchAndAnswer(
     if (!answer.trim()) {
       throw new Error("EMPTY_LLM_ANSWER");
     }
+    const bodyLimit = MAX_ANSWER_LENGTH - (scopeNote ? scopeNote.length + 2 : 0);
+    const body = answer.length > bodyLimit ? `${answer.slice(0, bodyLimit - 1)}…` : answer;
     return {
       status: "answered",
-      answer:
-        answer.length > MAX_ANSWER_LENGTH
-          ? `${answer.slice(0, MAX_ANSWER_LENGTH - 1)}…`
-          : answer,
+      answerMode: "generated",
+      answer: scopeNote ? `${body}\n\n${scopeNote}` : body,
       sources: citations,
     };
   } catch (error) {
+    if (collectionFallback) return collectionFallback;
     if (error instanceof Error && error.message === "SEARCH_TIMEOUT") {
       return {
         status: "timeout",
@@ -882,7 +894,11 @@ export async function searchAndAnswer(
         sources: citations,
       };
     }
-    throw error;
+    return {
+      status: "insufficient",
+      message: "답변을 생성하지 못했어요. 아래 공식 출처에서 내용을 확인해 주세요.",
+      sources: citations,
+    };
   }
 }
 

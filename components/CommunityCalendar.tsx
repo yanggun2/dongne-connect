@@ -129,7 +129,7 @@ export function CommunityCalendar({ schedules }: CommunityCalendarProps) {
             >
               <span className="calendar-day-number"><strong>{Number(dateKey.slice(8, 10))}</strong>{today === dateKey && <em>오늘</em>}</span>
               <span className="calendar-cell-events">
-                {daySchedules.slice(0, 2).map((schedule) => <span className="calendar-event-title" key={schedule.id} title={schedule.title}>{schedule.title}</span>)}
+                {daySchedules.slice(0, 2).map((schedule) => <span className="calendar-event-title" key={schedule.id} title={schedule.title}><span>{schedule.title}</span></span>)}
                 {daySchedules.length > 2 && <span className="calendar-event-more">+{daySchedules.length - 2}개 더 보기</span>}
               </span>
             </button>
