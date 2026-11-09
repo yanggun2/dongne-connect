@@ -234,7 +234,7 @@ const evidenceSources: EvidenceSource[] = [
   },
 ];
 
-type SearchInput = {
+export type SearchInput = {
   question: string;
   location: string;
   page?: number;
@@ -247,6 +247,7 @@ type GenerateAnswer = (
 ) => Promise<string>;
 
 type SearchDependencies = {
+  staticOnly?: boolean;
   today?: string;
   sources?: readonly EvidenceSource[];
   generateAnswer?: GenerateAnswer;
@@ -847,7 +848,7 @@ export async function searchAndAnswer(
 
   // Production generation requires a separate opt-in, never just a stored key.
   // Injected generators are offline test doubles, not production configuration.
-  if (!dependencies.generateAnswer && (process.env.LLM_SEARCH_ENABLED !== "true" ||
+  if (dependencies.staticOnly || !dependencies.generateAnswer && (process.env.LLM_SEARCH_ENABLED !== "true" ||
     !process.env.LLM_API_KEY?.trim() || !process.env.LLM_BASE_URL?.trim() || !process.env.LLM_MODEL?.trim())) {
     if (collectionFallback) return collectionFallback;
     return {

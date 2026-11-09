@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test:search": "node --conditions=react-server --import tsx --test scripts/search.test.ts",
     "test:llm": "node --conditions=react-server --import tsx scripts/test-llm.ts",
-    "test:haiku:offline": "node --conditions=react-server --import tsx --test scripts/answer-generation.test.ts scripts/haiku-evaluation.test.ts scripts/search-api-haiku.test.ts",
+    "test:haiku:offline": "node --conditions=react-server --import tsx --test scripts/answer-generation.test.ts scripts/haiku-evaluation.test.ts scripts/search-api-haiku.test.ts scripts/search-assistant.test.ts",
     "test:frontend": "node --import tsx --test scripts/frontend-pages.test.tsx scripts/neighborhood-map-ui.test.tsx scripts/waste-guide-ui.test.tsx",
     "test:waste-api": "node --import tsx scripts/test-waste-api.ts"
   },

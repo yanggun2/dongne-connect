@@ -199,6 +199,12 @@ function isResidentCenterSearchRecord(
 function isSearchResult(value: unknown): value is SearchResult {
   if (typeof value !== "object" || value === null) return false;
   const result = value as Record<string, unknown>;
+  if (result.assistant !== undefined) {
+    if (!result.assistant || typeof result.assistant !== "object") return false;
+    const assistant = result.assistant as Record<string, unknown>;
+    if (typeof assistant.answer !== "string" || !assistant.answer.trim() ||
+        typeof assistant.grounded !== "boolean") return false;
+  }
   if (!Array.isArray(result.sources) || !result.sources.every(isCitation)) return false;
   if (result.status === "answered") return typeof result.answer === "string";
   if (result.status === "waste_results") return typeof result.answer === "string" && typeof result.message === "string" && typeof result.regionName === "string" &&
@@ -622,7 +628,8 @@ export function DongneApp({ view = "home", initialNeighborhood = "citywide", ini
                 <p className="result-question">질문: “{result.question}”</p>
               </div>
               <span className={`search-result-badge search-result-${result.result.status}`}>
-                {result.result.status === "answered"
+                {result.result.assistant ? result.result.assistant.grounded ? "공식 자료 답변" : "자료 확인 안내"
+                  : result.result.status === "answered"
                   ? result.result.answerMode === "generated" ? "공식 자료 답변" : "공식 자료 안내"
                   : result.result.status === "waste_results"
                     ? "공식 배출 안내"
@@ -643,7 +650,8 @@ export function DongneApp({ view = "home", initialNeighborhood = "citywide", ini
               <div className="answer-block">
                 <span className="answer-label">
                   <Sparkles size={15} />
-                  {result.result.status === "answered"
+                  {result.result.assistant ? result.result.assistant.grounded ? "공식 자료를 바탕으로 안내해요" : "질문에 답해드려요"
+                    : result.result.status === "answered"
                     ? result.result.answerMode === "generated" ? "공식 자료를 바탕으로 안내해요" : "확인한 공식 자료를 안내해요"
                     : result.result.status === "waste_results"
                       ? "생활폐기물 배출 안내"
@@ -659,9 +667,15 @@ export function DongneApp({ view = "home", initialNeighborhood = "citywide", ini
                         ? "공식 안내 페이지"
                         : "답변 생성 안 함"}
                 </span>
-                {(result.result.status === "answered" || result.result.status === "waste_results"
+                {(result.result.assistant ? result.result.assistant.answer
+                  : result.result.status === "answered" || result.result.status === "waste_results"
                   ? result.result.answer : result.result.message).split(/\n\n/u).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
               </div>
+              {result.result.assistant && (result.result.status === "waste_results" || result.result.status === "answered") && (
+                <div className="answer-block source-answer"><span className="answer-label">확인한 공식 안내</span>
+                  {result.result.answer.split(/\n\n/u).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+                </div>
+              )}
               {result.result.status === "event_results" && result.result.events.map((event) => <OfficialEventCard key={event.id} event={event} />)}
               {result.result.status === "notice_results" && <OfficialNoticeList notices={result.result.notices} />}
               {result.result.status === "facility_results" && (

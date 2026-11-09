@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { allowSearchRequest, searchAndAnswer } from "@/lib/server/search";
+import { allowSearchRequest } from "@/lib/server/search";
+import { searchWithAssistant } from "@/lib/server/search-assistant";
 
 export const runtime = "nodejs";
 export const maxDuration = 20;
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await searchAndAnswer({ question, location, page });
+    const result = await searchWithAssistant({ question, location, page });
     return NextResponse.json(result);
   } catch {
     console.error("Search answer generation failed.");

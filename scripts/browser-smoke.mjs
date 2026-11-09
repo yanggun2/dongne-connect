@@ -16,10 +16,16 @@ try {
   for (const width of [375, 820, 1440]) {
     const context = await browser.newContext({ viewport: { width, height: 950 }, locale: "ko-KR", timezoneId: "Asia/Seoul", serviceWorkers: "block" });
     const errors = [], blocked = [], requests = [], checkedPages = [];
-    let forceEmpty = false;
+    let forceEmpty = false, mockAssistant = false;
     await context.route("**/*", async (route) => {
       const url = new URL(route.request().url());
       if (url.origin !== new URL(base).origin) { blocked.push(url.hostname); await route.abort(); return; }
+      if (mockAssistant && url.pathname === "/api/search") {
+        const response = await route.fetch();
+        const data = await response.json();
+        await route.fulfill({ response, json: { ...data, assistant: { answer: "확인된 자료 범위를 안내합니다.", grounded: false } } });
+        return;
+      }
       if (forceEmpty && url.pathname === "/api/neighborhood-map") {
         const response = await route.fetch();
         const data = await response.json();
@@ -172,7 +178,8 @@ try {
     assert.equal(await page.locator(".community-post").count(), 1);
     await page.locator(".community-post").click();
     await page.getByRole("dialog").waitFor();
-    assert.match(await page.getByRole("dialog").innerText(), /실제 나눔 물품이나 거래는 없습니다/);
+    assert.match(await page.getByRole("dialog").innerText(), /책을 함께 읽고/);
+    assert.doesNotMatch(await page.getByRole("dialog").innerText(), /예시|미리보기/);
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "전체", exact: true }).click();
     await page.getByRole("textbox", { name: "게시글 검색" }).fill("저녁");
@@ -191,6 +198,14 @@ try {
     await page.getByRole("button", { name: "검색하기", exact: true }).click();
     await page.locator(".answer-block").waitFor();
     assert.match(await page.locator(".answer-block").innerText(), /은행1동/);
+    mockAssistant = true;
+    await page.getByRole("button", { name: "검색하기", exact: true }).click();
+    await page.getByText("확인된 자료 범위를 안내합니다.", { exact: true }).waitFor();
+    assert.match(await page.locator(".source-answer").innerText(), /은행1동/);
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.getByRole("button", { name: "맨 위로 이동", exact: true }).click();
+    await page.waitForFunction(() => window.scrollY === 0);
+    await page.screenshot({ path: join(artifacts, `front-assistant-${width}.png`), fullPage: true });
     assert.equal(await page.locator('a[href^="nmap:"],a[href*="play.google.com"],a[href*="apps.apple.com"]').count(), 0);
     assert.deepEqual(errors, [], `runtime errors at ${width}`);
     assert.deepEqual(blocked, [], "all external requests blocked; none expected with mock SDK");

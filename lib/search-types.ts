@@ -57,7 +57,11 @@ export type ResidentCenterSearchRecord = {
   dataAsOf: string;
 };
 
-export type SearchResult =
+export type SearchResult = SearchResultData & {
+  assistant?: { answer: string; grounded: boolean };
+};
+
+type SearchResultData =
   | { status: "waste_results"; answer: string; message: string; regionName: string; category: WasteCategory; housing: WasteHousing; sources: SearchCitation[] }
   | { status: "notice_results"; message: string; notices: OfficialNotice[]; sources: SearchCitation[] }
   | {
