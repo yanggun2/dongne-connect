@@ -78,3 +78,24 @@ test("concurrent unique generations are capped at four", async () => {
   assert.deepEqual(await search({ ...input, question: "다섯 번째 질문" }), none);
   assert.equal(calls, 4); release(); await Promise.all(first);
 });
+
+test("empty-evidence output cannot contradict an existing waste guide or invent an official referral", async () => {
+  const search = createSearchAssistant({ enabled: () => true, generate: async () =>
+    "확인된 자료가 없습니다. **성남시청 환경과**에 문의하세요." });
+  const waste = await search({ ...input, question: "우리 동네 쓰레기 언제 버려?" });
+  assert.equal(waste.status, "waste_results");
+  assert.match(waste.assistant!.answer, /기본 배출 방법과 시간은 아래 공식 안내/);
+  assert.doesNotMatch(waste.assistant!.answer, /자료가 없습니다|환경과|\*\*/);
+  const unknown = await search(input);
+  assert.match(unknown.assistant!.answer, /조금 더 구체적으로/);
+  assert.doesNotMatch(unknown.assistant!.answer, /환경과|\*\*/);
+});
+
+test("grounded output retains paragraph/list line breaks without exposing bold markdown", async () => {
+  const search = createSearchAssistant({ enabled: () => true, generate: async () =>
+    "**공식 시설 안내**\n- 주소를 확인해 주세요.\n- __운영시간__은 원문을 확인해 주세요." });
+  const result = await search({ question: "성남시 공공시설 알려줘", location: "경기도 성남시" });
+  assert.equal(result.assistant!.grounded, true);
+  assert.match(result.assistant!.answer, /공식 시설 안내\n• 주소/);
+  assert.doesNotMatch(result.assistant!.answer, /\*\*|__/);
+});

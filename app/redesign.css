@@ -216,6 +216,7 @@ button, a, input, select, summary { outline-offset: 4px; }
 .app-shell .result-card { border: 1px solid #cddde9; background: #fff; }
 .app-shell .result-heading h2 { font-size: 27px; color: #1d3b53; }
 .app-shell .result-question, .app-shell .answer-block > p { color: #314f66; font-size: 16px; line-height: 1.9; }
+.app-shell .answer-block > p { white-space: pre-line; }
 .app-shell .answer-label { font-size: 15px; }
 .app-shell .result-source a, .app-shell .result-source h4 { font-size: 15px; }
 .app-shell .result-source p, .app-shell .result-location-note { color: #576f83; font-size: 13px; }

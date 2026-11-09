@@ -21,6 +21,7 @@ test("app search uses only approved real evidence with mocked SDK; disabled/erro
     assert.equal(payload.model, "bedrock-haiku");
     assert.equal(payload.max_tokens, 400);
     assert.match(payload.messages[0].content, /근거가 없거나 질문과 맞지 않으면/);
+    assert.match(payload.messages[0].content, /근거에 없는 부서명/);
     const evidence = JSON.parse(payload.messages[1].content).evidence;
     if (evidence.length === 0) {
       assert.equal(JSON.parse(payload.messages[1].content).location, "서울특별시");
